@@ -13,8 +13,10 @@ interface ElectronAPI {
   generateThumbnail: (filePath: string, width?: number, height?: number) => Promise<string>;
   onScanProgress: (callback: (progress: any) => void) => void;
   onAIProgress: (callback: (progress: any) => void) => void;
+  onFileOpProgress: (callback: (progress: any) => void) => void;
   analyzePhotos: (photoPaths: string[]) => Promise<any>;
   organizePhotos: (query: string, photos: any[]) => Promise<any>;
+  applyOrganization: (basePath: string, folderStructure: any, options?: any) => Promise<any>;
   testFileAccess: (filePath: string) => Promise<any>;
   getPlatformInfo: () => Promise<any>;
   platform: string;
@@ -52,6 +54,7 @@ const PhotoOrganizeDemo = () => {
   const [photoCount, setPhotoCount] = useState(0);
   const [scanProgress, setScanProgress] = useState<any>(null);
   const [aiAnalysisProgress, setAiAnalysisProgress] = useState<any>(null);
+  const [fileOpProgress, setFileOpProgress] = useState<any>(null);
 
   // Setup progress listeners
   useEffect(() => {
@@ -64,6 +67,11 @@ const PhotoOrganizeDemo = () => {
       if (window.electronAPI.onAIProgress) {
         window.electronAPI.onAIProgress((progress: any) => {
           setAiAnalysisProgress(progress);
+        });
+      }
+      if (window.electronAPI.onFileOpProgress) {
+        window.electronAPI.onFileOpProgress((progress: any) => {
+          setFileOpProgress(progress);
         });
       }
     }
@@ -629,12 +637,41 @@ const PhotoOrganizeDemo = () => {
     );
   };
 
-  const handleAccept = () => {
+  const handleAccept = async () => {
+    if (!selectedFolder || !window.electronAPI?.applyOrganization) {
+      console.error('Cannot apply organization: missing folder or API');
+      return;
+    }
+
     setIsProcessing(true);
-    setTimeout(() => {
-      setCurrentStep('complete');
+    setCurrentStage('applying');
+
+    try {
+      // Apply the organization to disk
+      const result = await window.electronAPI.applyOrganization(
+        selectedFolder,
+        previewStructure,
+        {
+          createBackup: true,
+          copyInsteadOfMove: false, // Move files by default
+        }
+      );
+
+      console.log('Organization applied:', result);
+
+      if (result.success) {
+        setCurrentStep('complete');
+      } else {
+        console.error('Organization failed:', result.errors);
+        alert(`Organization failed:\n${result.errors.join('\n')}`);
+      }
+    } catch (error) {
+      console.error('Failed to apply organization:', error);
+      alert('Failed to apply organization. Check console for details.');
+    } finally {
       setIsProcessing(false);
-    }, 1500);
+      setFileOpProgress(null);
+    }
   };
 
   const handleCancel = () => {
@@ -842,6 +879,11 @@ const PhotoOrganizeDemo = () => {
                   <h2 className="text-xl font-semibold text-gray-900 mb-3">AI Analyzing</h2>
                   <p className="text-gray-600 mb-6">Learning from your organization preferences and photo content</p>
                 </>
+              ) : currentStage === 'applying' ? (
+                <>
+                  <h2 className="text-xl font-semibold text-gray-900 mb-3">Applying Organization</h2>
+                  <p className="text-gray-600 mb-6">Moving photos to their new locations on disk</p>
+                </>
               ) : (
                 <>
                   <h2 className="text-xl font-semibold text-gray-900 mb-3">Reorganizing Your Photos</h2>
@@ -853,12 +895,22 @@ const PhotoOrganizeDemo = () => {
               <div className="w-full max-w-md mx-auto mb-4">
                 <div className="flex justify-between text-sm text-gray-600 mb-2">
                   <span>Progress</span>
-                  <span>{aiProgress}%</span>
+                  <span>
+                    {currentStage === 'applying' && fileOpProgress
+                      ? `${fileOpProgress.current} / ${fileOpProgress.total} (${fileOpProgress.percentage}%)`
+                      : `${aiProgress}%`}
+                  </span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-3">
                   <div
                     className="bg-red-500 h-3 rounded-full transition-all duration-200 ease-out"
-                    style={{ width: `${aiProgress}%` }}
+                    style={{
+                      width: `${
+                        currentStage === 'applying' && fileOpProgress
+                          ? fileOpProgress.percentage
+                          : aiProgress
+                      }%`,
+                    }}
                   ></div>
                 </div>
               </div>
@@ -879,6 +931,9 @@ const PhotoOrganizeDemo = () => {
                     {aiProgress >= 65 && aiProgress < 85 && "Moving photos to new locations..."}
                     {aiProgress >= 85 && "Finalizing organization..."}
                   </>
+                )}
+                {currentStage === 'applying' && fileOpProgress && (
+                  <>Moving {fileOpProgress.currentFile}...</>
                 )}
               </div>
             </div>

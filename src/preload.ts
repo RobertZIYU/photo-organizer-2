@@ -10,6 +10,8 @@ const IPC_CHANNELS = {
   ANALYZE_PHOTOS: 'analyze-photos',
   AI_PROGRESS: 'ai-progress',
   ORGANIZE_PHOTOS: 'organize-photos',
+  APPLY_ORGANIZATION: 'apply-organization',
+  FILE_OP_PROGRESS: 'file-op-progress',
 } as const;
 
 // Expose protected methods that allow the renderer process to use
@@ -33,6 +35,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onAIProgress: (callback: (progress: any) => void) => {
     ipcRenderer.on(IPC_CHANNELS.AI_PROGRESS, (event, progress) => callback(progress));
   },
+  onFileOpProgress: (callback: (progress: any) => void) => {
+    ipcRenderer.on(IPC_CHANNELS.FILE_OP_PROGRESS, (event, progress) => callback(progress));
+  },
 
   // File system operations
   selectFolder: () => ipcRenderer.invoke(IPC_CHANNELS.SELECT_FOLDER),
@@ -45,6 +50,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // AI operations
   analyzePhotos: (photoPaths: string[]) => ipcRenderer.invoke(IPC_CHANNELS.ANALYZE_PHOTOS, photoPaths),
   organizePhotos: (query: string, photos: any[]) => ipcRenderer.invoke(IPC_CHANNELS.ORGANIZE_PHOTOS, query, photos),
+
+  // File operations
+  applyOrganization: (basePath: string, folderStructure: any, options?: any) =>
+    ipcRenderer.invoke(IPC_CHANNELS.APPLY_ORGANIZATION, basePath, folderStructure, options),
 
   // Platform info
   platform: process.platform,

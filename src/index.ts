@@ -1,9 +1,10 @@
 import { app, BrowserWindow, ipcMain, dialog } from 'electron';
 import * as path from 'path';
-import { IPC_CHANNELS } from './shared/types';
+import { IPC_CHANNELS, FileOperationOptions } from './shared/types';
 import { FileSystemService } from './services/fileSystem';
 import { AIProcessingService } from './services/aiProcessing';
 import { OrganizationEngine } from './services/organizationEngine';
+import { FileOperationsService } from './services/fileOperations';
 
 // Declare webpack entry points
 declare const MAIN_WINDOW_WEBPACK_ENTRY: string;
@@ -15,6 +16,7 @@ let mainWindow: BrowserWindow | null = null;
 const fileSystemService = new FileSystemService();
 const aiProcessingService = new AIProcessingService();
 const organizationEngine = new OrganizationEngine();
+const fileOperationsService = new FileOperationsService();
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -202,3 +204,49 @@ ipcMain.handle(IPC_CHANNELS.ORGANIZE_PHOTOS, async (event, query: string, photos
     throw new Error(`Failed to organize photos: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 });
+
+// File operations
+ipcMain.handle(
+  IPC_CHANNELS.APPLY_ORGANIZATION,
+  async (
+    event,
+    basePath: string,
+    folderStructure: { [folderName: string]: any[] },
+    options: FileOperationOptions = {}
+  ) => {
+    try {
+      console.log(`Applying organization to ${basePath}`);
+      console.log(`Options:`, options);
+
+      const result = await fileOperationsService.applyOrganization(
+        basePath,
+        folderStructure,
+        options,
+        (current, total, currentFile) => {
+          // Send progress updates
+          if (mainWindow) {
+            mainWindow.webContents.send(IPC_CHANNELS.FILE_OP_PROGRESS, {
+              current,
+              total,
+              currentFile,
+              percentage: Math.round((current / total) * 100),
+            });
+          }
+        }
+      );
+
+      console.log(`Organization applied: ${result.movedFiles}/${result.totalFiles} files`);
+
+      // Clean up empty folders
+      if (result.success) {
+        const removedFolders = await fileOperationsService.cleanupEmptyFolders(basePath);
+        console.log(`Cleaned up ${removedFolders} empty folders`);
+      }
+
+      return result;
+    } catch (error) {
+      console.error('Failed to apply organization:', error);
+      throw new Error(`Failed to apply organization: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+);

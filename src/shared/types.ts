@@ -46,6 +46,19 @@ export interface OrganizationResult {
   folderStructure: { [folderName: string]: PhotoMetadata[] };
 }
 
+export interface FileOperationOptions {
+  createBackup?: boolean;
+  copyInsteadOfMove?: boolean;
+}
+
+export interface FileOperationResult {
+  success: boolean;
+  totalFiles: number;
+  movedFiles: number;
+  errors: string[];
+  backupPath?: string;
+}
+
 export interface IPCChannels {
   PING: 'ping';
   SELECT_FOLDER: 'select-folder';
@@ -55,6 +68,8 @@ export interface IPCChannels {
   ANALYZE_PHOTOS: 'analyze-photos';
   AI_PROGRESS: 'ai-progress';
   ORGANIZE_PHOTOS: 'organize-photos';
+  APPLY_ORGANIZATION: 'apply-organization';
+  FILE_OP_PROGRESS: 'file-op-progress';
 }
 
 export const IPC_CHANNELS: IPCChannels = {
@@ -66,4 +81,6 @@ export const IPC_CHANNELS: IPCChannels = {
   ANALYZE_PHOTOS: 'analyze-photos',
   AI_PROGRESS: 'ai-progress',
   ORGANIZE_PHOTOS: 'organize-photos',
+  APPLY_ORGANIZATION: 'apply-organization',
+  FILE_OP_PROGRESS: 'file-op-progress',
 };
